@@ -3,6 +3,9 @@ const User = require("../../models/Users/User");
 const generateToken = require("../../utils/generateToken");
 const asyncHandler = require("express-async-handler");
 const sendEmail = require("../../utils/sendEmail");
+const crypto = require("crypto");
+const { error } = require("console");
+const sendAccountVerificationEmail = require("../../utils/sendVerificationEmail");
 
 //@descripition: Register new User
 //@route POST /api/v1/users/register
@@ -13,7 +16,12 @@ exports.register = asyncHandler(async (req, res, next) => {
   if (existingUser) {
     throw new Error("User Already Exists!");
   }
-  const newUser = new User({ username, email, password });
+  const newUser = new User({
+    username,
+    email,
+    password,
+    profilePicture: req.file.path,
+  });
   const salt = await bcrypt.genSalt(10);
   newUser.password = await bcrypt.hash(password, salt);
   await newUser.save();
@@ -24,6 +32,7 @@ exports.register = asyncHandler(async (req, res, next) => {
     _id: newUser.id,
     username: newUser.username,
     role: newUser.role,
+    profilePicture: newUser.profilePicture,
   });
 });
 
@@ -59,7 +68,16 @@ exports.login = asyncHandler(async (req, res, next) => {
 //@route GET /api/v1/users/profile/:id
 //@access private
 exports.getProfile = asyncHandler(async (req, res, next) => {
-  const user = await User.findById(req.userAuth?.id);
+  const user = await User.findById(req.userAuth?.id)
+    .populate({
+      path: "profileViewers followers following blockedUsers",
+      model: "User",
+      select: "username email role",
+    })
+    .populate({
+      path: "posts",
+      model: "Post",
+    });
   if (!user) {
     let error = new Error("User not loged in");
     next(error);
@@ -266,7 +284,7 @@ exports.unFollowingUser = asyncHandler(async (req, res, next) => {
 });
 
 //@descripition: Forgot password
-//@route post /api/v1/users/forgot-password
+//@route POST /api/v1/users/forgot-password
 //@access public
 exports.forgotPassword = asyncHandler(async (req, res, next) => {
   //?Fetch the email
@@ -280,13 +298,100 @@ exports.forgotPassword = asyncHandler(async (req, res, next) => {
   //?Get the reset token
   const resetToken = await userFound.generatePasswordResetToken();
 
-  //? Save the changes (resetToken and exiryTime) to the DB 
+  //? Save the changes (resetToken and exiryTime) to the DB
   await userFound.save();
-  //sending the mail 
-  sendEmail(email, resetToken)
+  //sending the mail
+  sendEmail(email, resetToken);
   //Sending the response
   res.json({
     status: "success",
-    message: "Password reset token sent to you email successfully",
+    message: "Password reset token sent to your email successfully",
+  });
+});
+
+//@descripition: Reset password
+//@route POST /api/v1/users/reset-password/:resetToken
+//@access public
+exports.resetPassword = asyncHandler(async (req, res, next) => {
+  //get token from params
+  const resetToken = req.params.resetToken;
+
+  //get the password
+  const { password } = req.body;
+  //Convert resetToken into hashed token
+  const hashedToken = crypto
+    .createHash("sha256")
+    .update(resetToken)
+    .digest("hex");
+
+  //verify the token with DB
+  const userFound = await User.findOne({
+    passwordResetToken: hashedToken,
+    passwordResetExpires: { $gt: Date.now() },
+  });
+
+  if (!userFound) {
+    throw new Error("Password reset token is invalid or expired");
+  }
+  //Update the new password
+  const salt = await bcrypt.genSalt(10);
+  userFound.password = await bcrypt.hash(password, salt);
+  userFound.passwordResetToken = undefined;
+  userFound.passwordResetExpires = undefined;
+
+  await userFound.save();
+
+  res.json({
+    status: "success",
+    message: "Password has been changed successfully",
+  });
+});
+
+//@descripition: Send account verification mail
+//@route POST /api/v1/users/account-verification
+//@access private
+exports.accountVerificationEmail = asyncHandler(async (req, res, next) => {
+  //current user mail id
+  const currentUserId = req?.userAuth?._id;
+  const user = await User.findById(currentUserId);
+  if (!user) {
+    throw new Error("You are not logged in!");
+  }
+  const email = user?.email;
+  // get the token from user object
+  const verificationToken = await user.generateAccountVerificationToken();
+  await user.save();
+  sendAccountVerificationEmail(email, verificationToken);
+  res.json({
+    status: "success",
+    message: "Account verification token sent to your email successfully",
+  });
+});
+
+//@descripition: Verify the user by verification token
+//@route GET /api/v1/users/verify-user/:verificationToken
+//@access private
+exports.verifyUser = asyncHandler(async (req, res, next) => {
+  const verificationToken = req.params.verificationToken;
+
+  const hashedToken = crypto
+    .createHash("sha256")
+    .update(verificationToken)
+    .digest("hex");
+  // current user
+  const user = await User.findOne({
+    accountVerificationTokent: hashedToken,
+    accountVerificationExpires: { $gt: Date.now() },
+  });
+  if (!user) {
+    throw new Error("Account verification token is invalid or expired!");
+  }
+  user.isVerified = true;
+  user.accountVerificationTokent = undefined;
+  user.accountVerificationExpires = undefined;
+  await user.save();
+  res.json({
+    status: "success",
+    message: "User is verified succesfully",
   });
 });

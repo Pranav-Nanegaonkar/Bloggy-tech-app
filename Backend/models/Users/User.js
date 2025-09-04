@@ -36,7 +36,7 @@ const userSchema = new mongoose.Schema(
     },
     profilePicture: {
       type: String,
-      default: "",
+      required: true,
     },
     bio: {
       type: String,
@@ -65,28 +65,49 @@ const userSchema = new mongoose.Schema(
     passwordResetExpires: {
       type: Date,
     },
+    accountVerificationTokent: {
+      type: String,
+    },
     accountVerificationExpires: {
       type: Date,
     },
   },
   {
     timestamps: true,
+    toJSON: {
+      virtuals: true,
+    },
+    toObject: {
+      virtuals: true,
+    },
   }
 );
 userSchema.methods.generatePasswordResetToken = function () {
-  //!Genereate Token
   const resetToken = crypto.randomBytes(20).toString("hex");
+
   this.passwordResetToken = crypto
     .createHash("sha256")
     .update(resetToken)
     .digest("hex");
-  console.log("reset token: ", resetToken);
-  console.log("hashed token: ", this.passwordResetToken);
-  //!Set the expiry time to 10 min
   this.passwordResetExpires = Date.now() + 10 * 60 * 1000;
+
+  //Tell Mongoose these fields were modified
+  this.markModified("passwordResetToken");
+  this.markModified("passwordResetExpires");
+
   return resetToken;
 };
+userSchema.methods.generateAccountVerificationToken = function () {
+  const verificationToken = crypto.randomBytes(20).toString("hex");
 
+  this.accountVerificationTokent = crypto
+    .createHash("sha256")
+    .update(verificationToken)
+    .digest("hex");
+  this.accountVerificationExpires = Date.now() + 10 * 60 * 1000;
+
+  return verificationToken;
+};
 //!Convert Schema to model
 const User = mongoose.model("User", userSchema);
 

@@ -26,7 +26,10 @@ exports.createCategory = asyncHandler(async (req, res, next) => {
 //@route GET /api/v1/category/
 //@access public
 exports.getAllCategories = asyncHandler(async (req, res, next) => {
-  const allCategories = await Category.find({});
+  const allCategories = await Category.find({}).populate({
+    path:"posts",
+    model:"Post"
+  });
 
   return res.status(200).json({
     status: "success",

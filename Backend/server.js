@@ -10,9 +10,10 @@ const categoryRouter = require("./routes/categories/categoriesRouter");
 const postRouter = require("./routes/posts/postsRouter");
 const commentRouter = require("./routes/comments/commentsRouter");
 const sendEmail = require("./utils/sendEmail");
+const sendAccountVerificationEmail = require("./utils/sendVerificationEmail");
 
 // sendEmail("nanegaonkarpranav68@gmail.com","Token@123");
-
+// sendAccountVerificationEmail("nanegaonkarpranav68@gmail.com", "abc23443");
 //!Create an express app
 const app = express();
 
