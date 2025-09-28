@@ -10,6 +10,8 @@ const {
   disLikePost,
   clapPost,
   schedulePost,
+  getPublicPosts,
+  viewPost,
 } = require("../../controllers/posts/postsControllers");
 const isVerified = require("../../middlewares/ifVerified");
 const postRouter = express.Router();
@@ -22,8 +24,11 @@ const upload = multer({ storage });
 //!Create post route
 postRouter.post("/", isLoggedIn, isVerified, upload.single("file"), createPost);
 
+//!Get 4 posts
+postRouter.get("/public", getPublicPosts);
+
 //!Get single post
-postRouter.get("/:id", isLoggedIn, isVerified, getPost);
+postRouter.get("/:id", getPost);
 
 //!Get all post
 postRouter.get("/", isLoggedIn, isVerified, getAllPost);
@@ -32,7 +37,13 @@ postRouter.get("/", isLoggedIn, isVerified, getAllPost);
 postRouter.delete("/:id", isLoggedIn, isVerified, deletePost);
 
 //!Update a post
-postRouter.put("/:id", isLoggedIn, isVerified, updatePost);
+postRouter.put(
+  "/:id",
+  isLoggedIn,
+  isVerified,
+  upload.single("file"),
+  updatePost
+);
 
 //!Like a post
 postRouter.put("/like/:postId", isLoggedIn, isVerified, likePost);
@@ -45,5 +56,8 @@ postRouter.put("/claps/:postId", isLoggedIn, isVerified, clapPost);
 
 //!Schedule a post
 postRouter.put("/schedule/:postId", isLoggedIn, isVerified, schedulePost);
+
+//! View Post
+postRouter.put("/view/:postId", isLoggedIn, isVerified, viewPost);
 
 module.exports = postRouter;

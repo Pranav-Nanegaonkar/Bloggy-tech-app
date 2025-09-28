@@ -1,0 +1,8 @@
+@import "tailwindcss";
+
+a.active {
+  color: #ff0000af;
+  /* border-bottom-style: var(--tw-border-style); */
+  border-bottom-width: 2px;
+  border-color: oklch(58.5% 0.233 277.117);
+}

@@ -60,7 +60,7 @@ exports.createPost = asyncHandler(async (req, res, next) => {
 
 //@descripition: Get single post
 //@route GET /api/v1/post/:id
-//@access private
+//@access public
 exports.getPost = asyncHandler(async (req, res, next) => {
   const id = req.params.id;
   if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -68,16 +68,54 @@ exports.getPost = asyncHandler(async (req, res, next) => {
     next(error);
     return;
   }
-  const post = await Post.findById(id);
+  const post = await Post.findById(id)
+    .populate("author")
+    .populate("category")
+    .populate({
+      path: "comments",
+      model: "Comment",
+      populate: {
+        path: "author",
+        select: "username",
+      },
+    });
   if (!post) {
     let error = new Error("post not exist!");
     next(error);
     return;
   }
-  res.json({ status: "success", data: post });
+
+  // post.postViews = post.postViews + 1;
+  // console.log(post.postViews);
+
+  const savedPost = await post.save();
+  res.json({ status: "success", data: savedPost });
 });
 
-//@descripition: Get all post
+//@descripition: Get 4 posts
+//@route GET /api/v1/post/public
+//@access Public
+exports.getPublicPosts = asyncHandler(async (req, res, next) => {
+  const posts = await Post.find({})
+    .sort({ createdAt: -1 })
+    .limit(4)
+    .populate({
+      path: "category",
+      model: "Category",
+    })
+    .populate({
+      path: "author",
+      model: "User",
+      select: "username",
+    });
+  res.status(200).json({
+    status: "success",
+    message: "Post succesfully created / fetched ",
+    posts,
+  });
+});
+
+//@descripition: Get all posts
 //@route GET /api/v1/post/
 //@access private
 exports.getAllPost = asyncHandler(async (req, res, next) => {
@@ -94,7 +132,7 @@ exports.getAllPost = asyncHandler(async (req, res, next) => {
   // Fetch those posts whose author is not blockingUsersId
   const currentDateTime = new Date();
   const query = {
-    author: { $nin: blockingUsersIds }, // , is and in mongoose
+    author: { $nin: blockingUsersIds }, // ',' is and in mongoose
     $or: [
       {
         scheduledPublished: { $lte: currentDateTime },
@@ -102,11 +140,9 @@ exports.getAllPost = asyncHandler(async (req, res, next) => {
       },
     ],
   };
-  const allPosts = await Post.find(query).populate({
-    path: "author",
-    model: "User",
-    select: "username email role",
-  });
+  const allPosts = await Post.find(query)
+    .populate("author")
+    .populate("category");
 
   res.json({ status: "success", allPosts });
 });
@@ -121,24 +157,32 @@ exports.deletePost = asyncHandler(async (req, res, next) => {
     next(error);
     return;
   }
-  const post = await Post.findById(id);
+  const post = await Post.findById(id).populate("author");
   if (!post) {
     const error = new Error("Post does not exist");
     return next(error);
   }
 
-  // Update the user: remove the post from user's posts array
-  const user = await User.findByIdAndUpdate(
-    req.userAuth?._id,
-    {
-      $pull: { posts: post._id },
-    },
-    { new: true }
-  );
+  //? only the creater will delete the post
+  if (req?.userAuth?._id.toString() === post?.author?._id.toString()) {
+    // Update the user: remove the post from user's posts array
+    const user = await User.findByIdAndUpdate(
+      req.userAuth?._id,
+      {
+        $pull: { posts: post._id },
+      },
+      { new: true }
+    );
 
-  await Post.findByIdAndDelete(id);
+    await Post.findByIdAndDelete(id);
 
-  res.json({ status: "success", message: "Post deleted!" });
+    return res.json({ status: "success", message: "Post deleted!" });
+  } else {
+    return res.json({
+      status: "failure",
+      message: "user can only delete his post",
+    });
+  }
 });
 
 //@descripition: Update a post
@@ -146,16 +190,37 @@ exports.deletePost = asyncHandler(async (req, res, next) => {
 //@access private
 exports.updatePost = asyncHandler(async (req, res, next) => {
   const id = req.params.id;
-  const post = req.body;
+  const { title, category, content } = req.body;
   if (!mongoose.Types.ObjectId.isValid(id)) {
     let error = new Error("Invalid post ID!");
     next(error);
     return;
   }
-  const updatedPost = await Post.findByIdAndUpdate(id, post, {
-    new: true,
-    runValidators: true,
-  });
+  const currentPost = await Post.findById(id);
+  // console.log(req?.userAuth?._id.toString());
+  // console.log(currentPost?.author?._id.toString());
+
+  //? only the creater will update the post
+  if (req?.userAuth?._id.toString() !== currentPost?.author?._id.toString()) {
+    return res.json({
+      status: "Failure",
+      message: "The user is not the author of the current post",
+    });
+  }
+
+  const updatedPost = await Post.findByIdAndUpdate(
+    id,
+    {
+      image: req?.file?.path ? req?.file?.path : currentPost.image,
+      title: title ? title : currentPost.title,
+      category: category ? category : currentPost.category,
+      content: content ? content : currentPost.content,
+    },
+    {
+      new: true,
+      runValidators: true,
+    }
+  );
 
   res.json({ status: "success", message: "Post updated!", updatedPost });
 });
@@ -190,11 +255,12 @@ exports.likePost = asyncHandler(async (req, res, next) => {
   post.likes.addToSet(currentUserId);
   //if id in dislike remove the current userId from dislikes array
   post.dislikes.pull(currentUserId);
-  await post.save();
+  const updatedPost = await post.save();
 
   res.json({
     status: "Success",
     message: "Post Liked",
+    data: updatedPost,
   });
 });
 
@@ -227,11 +293,50 @@ exports.disLikePost = asyncHandler(async (req, res, next) => {
   post.dislikes.addToSet(currentUserId);
   //if id in like remove the current userId from likes array
   post.likes.pull(currentUserId);
-  await post.save();
+  const updatedPost = await post.save();
 
   res.json({
     status: "Success",
     message: "Post Disliked",
+    data: updatedPost,
+  });
+});
+
+//@descripition: view a post
+//@route PUT /api/v1/post/view/:postId
+//@access private
+exports.viewPost = asyncHandler(async (req, res, next) => {
+  //get the post id
+  const { postId } = req.params;
+  if (!mongoose.Types.ObjectId.isValid(postId)) {
+    let error = new Error("Invalid post ID!");
+    next(error);
+    return;
+  }
+  //get current user
+  const currentUserId = req.userAuth._id;
+  //search post
+  const post = await Post.findById(postId);
+  if (!post) {
+    throw new Error("Post not found!");
+  }
+  // add the current userId to likes array
+  const updatedPost = await Post.findByIdAndUpdate(
+    postId,
+    {
+      $addToSet: { postViews: currentUserId },
+    },
+    { new: true }
+  );
+
+  // post.postViews.addToSet(currentUserId);
+
+  // const updatedPost1 = await updatedPost.save();
+
+  res.json({
+    status: "Success",
+    message: "Post viewed",
+    data: updatedPost,
   });
 });
 
@@ -253,11 +358,12 @@ exports.clapPost = asyncHandler(async (req, res, next) => {
   }
   //Implements claps
   post.claps = post.claps + 1;
-  await post.save();
+  const updatedPost = await post.save();
 
   res.json({
     status: "Success",
     message: "Post Clapped",
+    data: updatedPost,
   });
 });
 

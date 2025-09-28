@@ -2,6 +2,7 @@ const express = require("express");
 const dotenv = require("dotenv");
 const usersRouter = require("./routes/users/usersRouter");
 const connectDB = require("./config/database");
+const cors = require("cors");
 const {
   notFound,
   globalErrorHandler,
@@ -16,6 +17,8 @@ const sendAccountVerificationEmail = require("./utils/sendVerificationEmail");
 // sendAccountVerificationEmail("nanegaonkarpranav68@gmail.com", "abc23443");
 //!Create an express app
 const app = express();
+
+app.use(cors());
 
 //!Load the enviroment variable
 dotenv.config();

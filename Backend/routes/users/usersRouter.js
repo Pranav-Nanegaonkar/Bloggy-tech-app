@@ -25,7 +25,7 @@ const storage = require("../../utils/fileUpload");
 const upload = multer({ storage });
 
 //!Register route
-usersRouter.post("/register", upload.single("file"), register);
+usersRouter.post("/register", register);
 //!Login route
 usersRouter.post("/login", login);
 //!Profile route

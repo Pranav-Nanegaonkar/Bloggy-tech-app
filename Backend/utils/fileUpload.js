@@ -14,7 +14,7 @@ const storage = new CloudinaryStorage({
   allowedFormats: ["jpg", "png", "jpeg"],
   params: {
     folder: "bloggytech",
-    transformation: [{ width: 500, height: 500, crop: "limit" }],
+    transformation: [{ width: 1000, height: 1000, crop: "limit" }],
   },
 });
 

@@ -20,7 +20,6 @@ exports.register = asyncHandler(async (req, res, next) => {
     username,
     email,
     password,
-    profilePicture: req.file.path,
   });
   const salt = await bcrypt.genSalt(10);
   newUser.password = await bcrypt.hash(password, salt);
@@ -32,7 +31,6 @@ exports.register = asyncHandler(async (req, res, next) => {
     _id: newUser.id,
     username: newUser.username,
     role: newUser.role,
-    profilePicture: newUser.profilePicture,
   });
 });
 

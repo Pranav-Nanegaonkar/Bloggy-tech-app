@@ -16,7 +16,7 @@ const postSchema = new mongoose.Schema(
     },
     content: {
       type: String,
-      requied: true,
+      required: true,
     },
     author: {
       type: mongoose.Schema.Types.ObjectId,
@@ -27,10 +27,7 @@ const postSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
-    postViews: {
-      type: Number,
-      default: 0,
-    },
+
     category: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Category",
@@ -40,6 +37,7 @@ const postSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    postViews: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
     likes: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
     dislikes: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
 
